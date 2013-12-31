@@ -156,6 +156,15 @@ def eval_hand(hand):
         if ev:
             return (True,hc,ev)
     return False,None,None
+def hands_cmp(h1,h2):
+    c1 = hand_combinations.index(h1[1][2])
+    c2 = hand_combinations.index(h2[1][2])
+    rt= cmp(c1,c2)
+    #FIXME: this is incorrect, we judge by the sum of card worths
+    #rather than precisely by the rules.
+    if rt==0:
+        rt = cmp(h1[1][3][0],h2[1][3][0])
+    return rt
 
 def playround(participants=1):
     rt={}
@@ -165,13 +174,15 @@ def playround(participants=1):
     #deal hands
     for pi in range(0,participants):
         hands[pi]=[]
-        for i in range(3):
+        for i in range(2):
             hands[pi].append(deck.pop())
 
     #deal house
     house.append(deck.pop())
     house.append(deck.pop())
+    house.append(deck.pop())
 
+    #print 'dealt: [%s] %s'%(' '.join(house),', '.join([' '.join(h) for h in hands.values()]))
     #evaluate hands
     for pi in hands:
         iseval,ev,worth = eval_hand(hands[pi]+house)
@@ -179,8 +190,19 @@ def playround(participants=1):
         if ev: 
             assert pi not in rt
             rt[pi]=(hands[pi],house,ev,worth)
-            #print hands[pi],house,ev,worth
-    return rt
+            #print house,hands[pi],ev,worth
+    rt = rt.items()
+    winner = None
+
+    if participants>1: #find the winner
+        rt.sort(hands_cmp)
+        wworth = rt[-1][1][3][0]
+        pworth  =rt[-2][1][3][0]
+        if wworth>pworth:
+            winner = rt[-1]
+
+
+    return rt,winner
     #raise Exception(hands,house)
 
 def test(lim=10000000):
@@ -188,8 +210,9 @@ def test(lim=10000000):
     patterns={}
     try:        
         for i in range(lim):
-            res = playround(participants=1)
-            for pid,r in res.items():
+            res,winner = playround(participants=8)
+            print winner
+            for pid,r in res:
                 if r[2] not in patterns: patterns[r[2]]=0
                 patterns[r[2]]+=1
             cnt+=1
@@ -197,6 +220,8 @@ def test(lim=10000000):
         print 'hands played:',cnt
         for k,v in sorted(patterns.items(),lambda x,y: cmp(x[1],y[1]),reverse=True):
             print k,v,'%4.4f'%(float(v)/cnt*100)+'%'
+    
+
     
 if __name__=='__main__':
     test()
