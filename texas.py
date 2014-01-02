@@ -1,10 +1,10 @@
 import random
-colors = ['H','S','D','C']
+colors = ['h','d','c','s']
 def gendeck(type='normal',jokers=True):
     if type=='russian':
-        numbers=['6','7','8','9','0']
+        numbers=['6','7','8','9','T']
     else:
-        numbers = ['2','3','4','5','6','7','8','9','0']
+        numbers = ['2','3','4','5','6','7','8','9','T']
     royalty = ['J','Q','K','A']
 
     deck=[]
@@ -35,7 +35,7 @@ cardworths = {
     '7':7,
     '8':8,
     '9':9,
-    '0':10,
+    'T':10,
     'J':11,
     'Q':12,
     'K':13,

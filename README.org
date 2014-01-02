@@ -1,0 +1,6 @@
+1. install the pypoker-eval package
+$ sudo apt-get install python-pypoker-eval
+2. run the generator to write permutations for poker hands. first
+   argument is number of oponents. 2nd argument is the permutations
+   generator. "randeal" works best, "permute" is also available.
+$ python poker_scratch.py 8 randeal

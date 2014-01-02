@@ -1,6 +1,9 @@
-from texas import hands_cmp,playround
+import pokereval
 import copy
+import os,sys
+from deal_all import permute,randeal
 
+pe = pokereval.PokerEval()
 outcomes = ['W','L','T']
 
 def perms_srt(x,y):
@@ -31,44 +34,39 @@ def get_result_permutations(oponents=3):
                             tok.sort(perms_srt)
 
                             res.append(''.join(tok))
-    # print res
-    # print len(res)
-    # print len(set(res))
     return set(res)
-def extract_permutations(r):
-    dct = {1:'W',
+
+def extract_permutations(r,house):
+    dct = {-1:'W',
            0:'T',
-           -1:'L'}
+           1:'L'}
     ret = {}
+    assert len(r)==len(set([el.__repr__() for el in r]))
     for h in r:
         op=[]
         rc = copy.copy(r)
-        rc.remove(h)
+        idx = [el.__repr__() for el in rc].index(h.__repr__())
+        del rc[idx]
+        rcrepr = [rca.__repr__() for rca in rc]
+        
         for oh in rc: #minl:
-            if h==oh: 
-                raise Exception('wtf')
-            res = dct[hands_cmp(h,oh)]
+            if h.__repr__()==oh.__repr__(): 
+                raise Exception('wtf',h,oh,rc)
+            myeval = pe.evaln(house+h)
+            oheval = pe.evaln(oh+house)
+            res = dct[cmp(myeval,oheval)]
             op.append(res)
         op.sort(perms_srt)
         ''.join(op)
         tok = ''.join(op)
+
         if tok not in ret: ret[tok]=[]
-        prod = h
-        housecards = (prod[1][1])
-        myhand = prod[1][0]+[prod[1][2]]
-        otherhands = ', '.join([' '.join(rcc[1][0])+' '+
-                               ' '.join([rcc[1][2]]) for rcc in rc])
-
-        state= (''.join(tok)+': '+
-            '[%s]'%' '.join(housecards)+
-            ' [%s]'%' '.join(myhand)+
-            ' vs [%s]'%otherhands)
-
+        state = [house,h,myeval,rc]
         ret[tok].append(state)
     #raise Exception([(k,len(v)) for k,v in ret.items()])
     return ret
 
-import os
+
 
 def write(gperms,oponents):
     opdir = os.path.join('permutations',str(oponents))
@@ -76,43 +74,66 @@ def write(gperms,oponents):
     for perm in gperms:
         permf = os.path.join(opdir,perm+'.txt')
         fp = open(permf,'a')
+        rcnt=0
         for row in gperms[perm]:
             fp.write(row+'\n')
+            rcnt+=1
         fp.close()
-        print 'wrote',permf
+        print 'wrote',rcnt,'lines into',permf
 
 def extract():
-    oponents=5
+    oponents=int(sys.argv[1])
     perms = get_result_permutations(oponents) 
     gperms={}
     print len(perms),'permutations needed'
-    cnt=0
+    cnt=0 ; pcnt=0
+    if sys.argv[2]=='randeal':
+        it = randeal
+    elif sys.argv[2]=='permute':
+        it = permute
     try:
-        while len(perms-set(gperms.keys())):
-            r = playround(oponents+1)[0]
-            mp = extract_permutations(r)
+        for p in it(5+(oponents+1)*2):
+            #print p
+            pcnt+=1
+            if pcnt % 10000 ==0: print 'pcnt',pcnt
+            if pcnt>=10000000: break
+
+            #continue
+            cards = p.split(' ')
+            house = cards[0:5]
+
+
+            r=[]
+            #print 'house',house
+            for i in range(5,5+oponents+1):
+                r.append([cards[i],cards[i+1]])
+
+            mp = extract_permutations(r,house)
+
 
             for perm in mp:
                 if perm not in gperms:
                     gperms[perm]={}
                     missing = perms-set(gperms.keys())
-                    print len(gperms.keys()),'attained;',cnt,'tot. ; missing:',missing
+                    print (gperms.keys()),'attained;',cnt,'tot.',pcnt,'ptot ; missing:',missing
 
 
                 for st in mp[perm]:
-                    if st not in gperms[perm]: 
+                    strep = ' '.join([sta.__repr__() for sta in st])
+                    if strep not in gperms[perm]: 
 
-                        gperms[perm][st]=0
-                        #print st
+                        gperms[perm][strep]=0
                     else:
                         pass
-                        #print '+'
-                    gperms[perm][st]+=1
+                    gperms[perm][strep]+=1
                     cnt+=1
+            if not len(missing): break
     finally:
         print 'WRITING'
         write(gperms,oponents)
                 
     return gperms
+
 if __name__=='__main__':
     extract()
+
