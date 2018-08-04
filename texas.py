@@ -1,4 +1,6 @@
-import random
+import random,sys
+from functools import cmp_to_key as c2k
+
 colors = ['h','d','c','s']
 def gendeck(type='normal',jokers=True):
     if type=='russian':
@@ -73,11 +75,13 @@ def eval_pair(hand,mode='pair'):
         minf=1
     else: raise Exception('unknown mode %s'%mode)
 
-    agg = filter(lambda x: x[1]>minf,agg.items())
-    agg.sort(lambda x,y: cmp(cardworths[x[0]],cardworths[y[0]]))
+    agg = list(filter(lambda x: x[1]>minf,agg.items()))
+    agg.sort(key=c2k(lambda x,y: cmp(cardworths[x[0]],cardworths[y[0]])))
     if mode=='two_pair':
         if len(agg)>=2:
-            return [(cardworths[cw[0]]*cw[1],cw) for cw in agg]
+            rt= [(cardworths[cw[0]]*cw[1],cw) for cw in agg]
+            tworth = sum([r[0] for r in rt])
+            return (tworth,rt)
     elif mode in ['pair','three_of_a_kind','four_of_a_kind']:
         if len(agg):
             return cardworths[agg[-1][0]]*agg[-1][1],agg[-1]
@@ -109,13 +113,13 @@ def eval_flush(hand,royal=False,straight=False,flush=True):
     else: lim_colors = ['_']
     for lim_color in lim_colors:
         if flush:
-            hc = filter(lambda x: x[1]==lim_color,hand)
+            hc = list(filter(lambda x: x[1]==lim_color,hand))
             if not straight and not royal and len(hc)==5:
                 return (sum([cardworths[h[0:-1]] for h in hc]),hc)
         else:
             hc = hand
-        #print 'sorting %s'%hc
-        hc.sort(card_sort)
+        #print('sorting %s'%hc)
+        hc.sort(key=c2k(card_sort))
         sequential=0
         if royal and len(hc) and cardworths[hc[0][0:-1]]!=10: 
             continue
@@ -124,13 +128,13 @@ def eval_flush(hand,royal=False,straight=False,flush=True):
             seq_nxt = nextcard(crd)
             if not seq_nxt:
                 continue
-            #print '%s != %s'%(seq_nxt,
+            #print('%s != %s'%(seq_nxt)
             # if i+1 not in hc:
             #     break
             ni = i+1
             if len(hc)<ni+1:
                 break
-            #print 'getting index',ni,'in',hc,len(hc)<ni
+            #print('getting index',ni,'in',hc,len(hc)<ni)
             real_nxt=hc[ni]
             if seq_nxt[0:-1]==real_nxt[0:-1]:
                 sequential+=1
@@ -154,16 +158,20 @@ def eval_hand(hand):
     for hc in reversed(hand_combinations):
         ev = eval('eval_'+hc)(hand)
         if ev:
+            #print(hc.upper(),':',type(ev),ev)
+            assert type(ev)==tuple
             return (True,hc,ev)
     return False,None,None
+def cmp(a, b):
+    return (a > b) - (a < b) 
 def hands_cmp(h1,h2):
-    c1 = hand_combinations.index(h1[1][2])
-    c2 = hand_combinations.index(h2[1][2])
+    c1 = hand_combinations.index(h1[1]['ev'])
+    c2 = hand_combinations.index(h2[1]['ev'])
     rt= cmp(c1,c2)
     #FIXME: this is incorrect, we judge by the sum of card worths
     #rather than precisely by the rules.
     if rt==0:
-        rt = cmp(h1[1][3][0],h2[1][3][0])
+        rt = cmp(h1[1]['worth'][0],h2[1]['worth'][0])
     return rt
 
 def playround(participants=1):
@@ -182,44 +190,68 @@ def playround(participants=1):
     house.append(deck.pop())
     house.append(deck.pop())
 
-    #print 'dealt: [%s] %s'%(' '.join(house),', '.join([' '.join(h) for h in hands.values()]))
+    #print('dealt: [%s] %s'%(' '.join(house),', '.join([' '.join(h) for h in hands.values()])))
     #evaluate hands
     for pi in hands:
         iseval,ev,worth = eval_hand(hands[pi]+house)
-        #print worth,ev,hands[pi],house
+        #print(worth,ev,hands[pi],house)
         if ev: 
             assert pi not in rt
-            rt[pi]=(hands[pi],house,ev,worth)
-            #print house,hands[pi],ev,worth
-    rt = rt.items()
+            rt[pi]={'hand':hands[pi], # 0
+                    'house':house,    # 1 
+                    'ev':ev,          # 2
+                    'worth':worth}    # 3
+            #Print(house,hands[pi],ev,worth)
+    rt = list(rt.items())
+    types = set([type(trt) for trt in rt])
+    assert len(types)==1
+    for t in types: assert t==tuple,t
     winner = None
 
     if participants>1: #find the winner
-        rt.sort(hands_cmp)
-        wworth = rt[-1][1][3][0]
-        pworth  =rt[-2][1][3][0]
-        if wworth>pworth:
-            winner = rt[-1]
+        rt.sort(key=c2k(hands_cmp))
+
+        types = set([type(trt) for trt in rt])
+        assert len(types)==1
+        for t in types: assert t==tuple,t
+
+        
+        wworth = rt[-1][1]['worth'][0]
+        pworth = rt[-2][1]['worth'][0]
+        
+        # assert type(wworth)==int,Exception(rt[-1][1]['worth'])
+        # assert type(pworth)==int,Exception(rt[-2][1]['worth'])
+        try:
+            if wworth>pworth:
+                winner = rt[-1]
+        except TypeError:
+            print('wworth:',rt[-1][1]['worth'])
+            print('pworth:',rt[-2][1]['worth'])
+            # (4, {'hand': ['6h', 'Jd'], 'house': ['Kh', 'Kc', '6d'], 'ev': 'two_pair', 'worth': [(12, ('6', 2)), (26, ('K', 2))]})
+            # (7, {'hand': ['Jc', '8h'], 'house': ['Kh', 'Kc', '6d'], 'ev': 'pair', 'worth': (26, ('K', 2))})
+            raise
 
 
     return rt,winner
     #raise Exception(hands,house)
 
-def test(lim=10000000):
+def test(lim=10000):
+    random.seed(len(sys.argv)>1 and sys.argv[1] or None)
     cnt=0
     patterns={}
     try:        
         for i in range(lim):
             res,winner = playround(participants=8)
-            print winner
+            print(winner)
+            
             for pid,r in res:
-                if r[2] not in patterns: patterns[r[2]]=0
-                patterns[r[2]]+=1
+                if r['ev'] not in patterns: patterns[r['ev']]=0
+                patterns[r['ev']]+=1
             cnt+=1
     finally:
-        print 'hands played:',cnt
-        for k,v in sorted(patterns.items(),lambda x,y: cmp(x[1],y[1]),reverse=True):
-            print k,v,'%4.4f'%(float(v)/cnt*100)+'%'
+        print('hands played:',cnt)
+        for k,v in sorted(patterns.items(),key=c2k(lambda x,y: cmp(x[1],y[1])),reverse=True):
+            print(k,v,'%4.4f'%(float(v)/cnt*100)+'%')
     
 
     
