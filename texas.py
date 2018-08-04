@@ -2,6 +2,8 @@
 
 import random,sys
 from functools import cmp_to_key as c2k
+def cmp(a, b):
+    return (a > b) - (a < b)
 
 
 class Card(object):
@@ -20,11 +22,21 @@ class Card(object):
         'K':13,
         'A':14
         }
+    worthcards = dict(zip(cardworths.values(),cardworths.keys()))
     
     colors = ['h','d','c','s']
     numbers = ['2','3','4','5','6','7','8','9','T']
     royalty = ['J','Q','K','A']
     jokers = ['O1','O2']
+
+    def next(self):
+        cw = self.cardworths[self.rank]
+        if cw+1 in self.worthcards:
+            rt = self.worthcards[cw+1]
+            return Card(rt,self.suit)
+        else:
+            return None
+    
     def __init__(self,rank,suit):
         assert rank in self.numbers or rank in self.royalty,rank
         assert suit in self.colors,suit
@@ -128,7 +140,7 @@ class CardCollection(object):
                 continue
             for i in range(len(hc)):
                 crd = hc[i]
-                seq_nxt = nextcard(crd)
+                seq_nxt = crd.next()
                 if not seq_nxt:
                     continue
                 #print('%s != %s'%(seq_nxt)
@@ -185,7 +197,7 @@ class CardCollection(object):
             yield c
 
     def sort(self):
-        self.cards.sort(key=c2k(card_sort))
+        self.cards.sort()
     
     def __repr__(self):
         return str(self.cards)
@@ -227,39 +239,10 @@ class Hand(Deck):
     def take(self,cards,qty=take_qty):
         assert len(cards)==qty,"%s != %s"%(cards,qty)
         self.cards+=cards
+
 class House(Hand):
+    take_qty=3
     pass
-        
-
-
-
-worthcards = dict(zip(Card.cardworths.values(),Card.cardworths.keys()))
-
-def card_sort(c1,c2):
-
-    return cmp(Card.cardworths[c1.rank],
-               Card.cardworths[c2.rank])
-
-def nextcard(c):
-    cw = Card.cardworths[c.rank]
-    if cw+1 in worthcards:
-        rt = worthcards[cw+1]
-        return Card(rt,c.suit)
-    else:
-        return None
-
-
-def cmp(a, b):
-    return (a > b) - (a < b) 
-def hands_cmp(h1,h2):
-    c1 = CardCollection.hand_combinations.index(h1[1]['ev'])
-    c2 = CardCollection.hand_combinations.index(h2[1]['ev'])
-    rt= cmp(c1,c2)
-    #FIXME: this is incorrect, we judge by the sum of card worths
-    #rather than precisely by the rules.
-    if rt==0:
-        rt = cmp(h1[1]['worth'][0],h2[1]['worth'][0])
-    return rt
 
 class Game(object):
     def __init__(self,participants=1):
@@ -298,7 +281,7 @@ class Game(object):
         self.winner = None
 
         if self.participants>1: #find the winner
-            rt.sort(key=c2k(hands_cmp))
+            rt.sort() #key=c2k(hands_cmp))
 
             types = set([type(trt) for trt in rt])
             assert len(types)==1
@@ -322,7 +305,7 @@ class Game(object):
         return rt,self.winner
         #raise Exception(hands,house)
 
-def test(lim=1000):
+def test(lim=10000):
     random.seed(len(sys.argv)>1 and sys.argv[1] or None)
     cnt=0
     patterns={}
@@ -339,7 +322,7 @@ def test(lim=1000):
     finally:
         print('hands played:',cnt)
         for k,v in sorted(patterns.items(),key=c2k(lambda x,y: cmp(x[1],y[1])),reverse=True):
-            print(k,v,'%4.4f'%(float(v)/cnt*100)+'%')
+            print(k,v,'%2.2f'%(float(v)/cnt*10)+'%')
     
 
     
