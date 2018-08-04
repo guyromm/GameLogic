@@ -261,62 +261,66 @@ def hands_cmp(h1,h2):
         rt = cmp(h1[1]['worth'][0],h2[1]['worth'][0])
     return rt
 
-def playround(participants=1):
-    rt={}
-    deck = Deck()
-    hands={} 
-    house=House()
+class Game(object):
+    def __init__(self,participants=1):
+        self.participants = participants
+        
+    def play(self):
+        rt={}
+        self.deck = Deck()
+        self.hands={} 
+        self.house=House()
 
-    #deal hands
-    for pi in range(0,participants):
-        hands[pi] = Hand()
-        hands[pi].take(deck.deal())
+        #deal hands
+        for pi in range(0,self.participants):
+            self.hands[pi] = Hand()
+            self.hands[pi].take(self.deck.deal())
 
-    #deal house
-    house.take(deck.deal(3),3)
+        #deal house
+        self.house.take(self.deck.deal(3),3)
 
-    #print('dealt: [%s] %s'%(' '.join(house),', '.join([' '.join(h) for h in hands.values()])))
-    #evaluate hands
-    for pi in hands:
-        iseval,ev,worth = (hands[pi]+house).eval()
-        #print(worth,ev,hands[pi],house)
-        if ev: 
-            assert pi not in rt
-            rt[pi]={'hand':hands[pi], # 0
-                    'house':house,    # 1 
-                    'ev':ev,          # 2
-                    'worth':worth}    # 3
-            #Print(house,hands[pi],ev,worth)
-    rt = list(rt.items())
-    types = set([type(trt) for trt in rt])
-    assert len(types)==1
-    for t in types: assert t==tuple,t
-    winner = None
-
-    if participants>1: #find the winner
-        rt.sort(key=c2k(hands_cmp))
-
+        #print('dealt: [%s] %s'%(' '.join(house),', '.join([' '.join(h) for h in hands.values()])))
+        #evaluate hands
+        for pi in self.hands:
+            iseval,ev,worth = (self.hands[pi]+self.house).eval()
+            #print(worth,ev,hands[pi],house)
+            if ev: 
+                assert pi not in rt
+                rt[pi]={'hand':self.hands[pi], # 0
+                        'house':self.house,    # 1 
+                        'ev':ev,          # 2
+                        'worth':worth}    # 3
+                #Print(house,hands[pi],ev,worth)
+        rt = list(rt.items())
         types = set([type(trt) for trt in rt])
         assert len(types)==1
         for t in types: assert t==tuple,t
+        self.winner = None
 
-        
-        wworth = rt[-1][1]['worth'][0]
-        pworth = rt[-2][1]['worth'][0]
-        
-        # assert type(wworth)==int,Exception(rt[-1][1]['worth'])
-        # assert type(pworth)==int,Exception(rt[-2][1]['worth'])
-        try:
-            if wworth>pworth:
-                winner = rt[-1]
-        except TypeError:
-            print('wworth:',rt[-1][1]['worth'])
-            print('pworth:',rt[-2][1]['worth'])
-            raise
+        if self.participants>1: #find the winner
+            rt.sort(key=c2k(hands_cmp))
+
+            types = set([type(trt) for trt in rt])
+            assert len(types)==1
+            for t in types: assert t==tuple,t
 
 
-    return rt,winner
-    #raise Exception(hands,house)
+            wworth = rt[-1][1]['worth'][0]
+            pworth = rt[-2][1]['worth'][0]
+
+            # assert type(wworth)==int,Exception(rt[-1][1]['worth'])
+            # assert type(pworth)==int,Exception(rt[-2][1]['worth'])
+            try:
+                if wworth>pworth:
+                    self.winner = rt[-1]
+            except TypeError:
+                print('wworth:',rt[-1][1]['worth'])
+                print('pworth:',rt[-2][1]['worth'])
+                raise
+
+
+        return rt,self.winner
+        #raise Exception(hands,house)
 
 def test(lim=1000):
     random.seed(len(sys.argv)>1 and sys.argv[1] or None)
@@ -324,9 +328,10 @@ def test(lim=1000):
     patterns={}
     try:        
         for i in range(lim):
-            res,winner = playround(participants=8)
+            g = Game(participants=8)
+            res,winner = g.play()
             print(winner)
-            
+
             for pid,r in res:
                 if r['ev'] not in patterns: patterns[r['ev']]=0
                 patterns[r['ev']]+=1
