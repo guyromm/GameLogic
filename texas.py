@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import random,sys
+import random,sys,json
 from functools import cmp_to_key as c2k
 def cmp(a, b):
     return (a > b) - (a < b)
@@ -29,6 +29,8 @@ class Card(object):
     royalty = ['J','Q','K','A']
     jokers = ['O1','O2']
 
+    def to_json(self):
+        return self.__repr__()
     def next(self):
         cw = self.cardworths[self.rank]
         if cw+1 in self.worthcards:
@@ -70,7 +72,15 @@ class CardCollection(object):
         'straight_flush',
         'royal_flush'
     ]
-
+    def to_json(self):
+        return [c.to_json() for c in self.cards]
+    @classmethod
+    def from_json(cls,j):
+        o = cls()
+        o.cards=[]
+        for c in [Card(i[0],i[1]) for i in j]:
+            o.cards.append(c)
+        return o
     def eval_pair(self,mode='pair'):
         hand = self
         agg={}
@@ -247,13 +257,29 @@ class House(Hand):
 class Game(object):
     def __init__(self,participants=1):
         self.participants = participants
-        
-    def play(self):
-        rt={}
         self.deck = Deck()
         self.hands={} 
         self.house=House()
+    
+    @classmethod
+    def load(cls,obj):
+        g = Game(obj['participants'])
+        g.deck = Deck.from_json(obj['deck'])
 
+        for hid,h in obj['hands'].items():
+            g.hands[hid]=Hand.from_json(h)
+        g.house = House.from_json(obj['house'])
+        return g
+    
+    def to_json(self):
+        return json.dumps({'participants':self.participants,
+                           'deck':self.deck.to_json(),
+                           'hands':dict([(k,h.to_json()) for (k,h) in self.hands.items()]),
+                           'house':self.house.to_json()
+                          })
+    
+
+    def deal(self):
         #deal hands
         for pi in range(0,self.participants):
             self.hands[pi] = Hand()
@@ -262,6 +288,11 @@ class Game(object):
         #deal house
         self.house.take(self.deck.deal(3),3)
 
+        
+    def play(self):
+        rt={}
+
+        self.deal()
         #print('dealt: [%s] %s'%(' '.join(house),', '.join([' '.join(h) for h in hands.values()])))
         #evaluate hands
         for pi in self.hands:
@@ -327,4 +358,15 @@ def test(lim=10000):
 
     
 if __name__=='__main__':
-    test()
+    if 'test' in sys.argv:
+        test()
+
+    if 'new' in sys.argv:
+        g = Game(participants=8)
+    elif 'load' in sys.argv:
+        j = json.load(sys.stdin)
+        g = Game.load(j)
+    if 'deal' in sys.argv:
+        g.deal()
+    if 'save' in sys.argv:
+        print(g.to_json())
