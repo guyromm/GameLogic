@@ -1,8 +1,26 @@
+#!/usr/bin/env python
+
 import random,sys
 from functools import cmp_to_key as c2k
 
 
 class Card(object):
+    cardworths = {
+        '2':2,
+        '3':3,
+        '4':4,
+        '5':5,
+        '6':6,
+        '7':7,
+        '8':8,
+        '9':9,
+        'T':10,
+        'J':11,
+        'Q':12,
+        'K':13,
+        'A':14
+        }
+    
     colors = ['h','d','c','s']
     numbers = ['2','3','4','5','6','7','8','9','T']
     royalty = ['J','Q','K','A']
@@ -16,11 +34,11 @@ class Card(object):
         return self.rank+self.suit
 
     def __gt__(self,c2):
-        return cardworths[self.rank] > cardworths[c2.rank]
+        return self.cardworths[self.rank] > self.cardworths[c2.rank]
     def __lt__(self,c2):
-        return cardworths[self.rank] < cardworths[c2.rank]
+        return self.cardworths[self.rank] < self.cardworths[c2.rank]
     def __eq__(self,c2):
-        return cardworths[self.rank] == cardworths[c2.rank]
+        return self.cardworths[self.rank] == self.cardworths[c2.rank]
 
     
 class RuCard(Card):
@@ -28,6 +46,125 @@ class RuCard(Card):
     jokers=[]
 
 class CardCollection(object):
+    hand_combinations = [
+        'high_card',                
+        'pair',
+        'two_pair',
+        'three_of_a_kind',
+        'straight',
+        'flush',                    
+        'full_house',
+        'four_of_a_kind',
+        'straight_flush',
+        'royal_flush'
+    ]
+
+    def eval_pair(self,mode='pair'):
+        hand = self
+        agg={}
+        for h in hand:
+            denom = h.rank
+            if denom not in agg:
+                agg[denom]=0
+            agg[denom]+=1
+        if mode=='three_of_a_kind':
+            minf=2
+        elif mode=='four_of_a_kind':
+            minf=3
+        elif mode=='high_card':
+            minf=0
+        elif mode in ['full_house','two_pair','pair']:
+            minf=1
+        else: raise Exception('unknown mode %s'%mode)
+
+        agg = list(filter(lambda x: x[1]>minf,agg.items()))
+        agg.sort(key=c2k(lambda x,y: cmp(Card.cardworths[x[0]],Card.cardworths[y[0]])))
+        if mode=='two_pair':
+            if len(agg)>=2:
+                rt= [(Card.cardworths[cw[0]]*cw[1],cw) for cw in agg]
+                tworth = sum([r[0] for r in rt])
+                return (tworth,rt)
+        elif mode in ['pair','three_of_a_kind','four_of_a_kind']:
+            if len(agg):
+                return Card.cardworths[agg[-1][0]]*agg[-1][1],agg[-1]
+        elif mode in ['high_card']:
+            return Card.cardworths[agg[-1][0]],agg[-1]
+        elif mode in ['full_house']:
+            aggv = [v[1] for v in agg]
+            if 2 in aggv and 3 in aggv:
+                cworth = [Card.cardworths[cw[0]]*cw[1] for cw in agg]
+                return sum(cworth),agg
+        else:
+            raise Exception('unknown mode %s'%mode)
+        return False
+
+    def eval_two_pair(self):
+        return self.eval_pair(mode='two_pair')
+    def eval_three_of_a_kind(self):
+        return self.eval_pair(mode='three_of_a_kind')
+    def eval_high_card(self):
+        return self.eval_pair(mode='high_card')
+    def eval_full_house(self):
+        return self.eval_pair(mode='full_house')
+    def eval_four_of_a_kind(self):
+        return self.eval_pair(mode='four_of_a_kind')
+
+    def eval_flush(self,royal=False,straight=False,flush=True):
+
+        rt=False
+        if flush: lim_colors = Card.colors
+        else: lim_colors = ['_']
+        for lim_color in lim_colors:
+            if flush:
+                hc = list(filter(lambda x: x.suit==lim_color,self))
+                if not straight and not royal and len(hc)==5:
+                    return (sum([Card.cardworths[h.rank] for h in hc]),hc)
+            else:
+                hc = self
+            #print('sorting %s'%hc)
+            hc.sort() #key=c2k(card_sort))
+            sequential=0
+            if royal and len(hc) and Card.cardworths[hc[0].rank]!=10: 
+                continue
+            for i in range(len(hc)):
+                crd = hc[i]
+                seq_nxt = nextcard(crd)
+                if not seq_nxt:
+                    continue
+                #print('%s != %s'%(seq_nxt)
+                # if i+1 not in hc:
+                #     break
+                ni = i+1
+                if len(hc)<ni+1:
+                    break
+                #print('getting index',ni,'in',hc,len(hc)<ni)
+                real_nxt=hc[ni]
+                if seq_nxt.rank==real_nxt.rank:
+                    sequential+=1
+                else:
+                    break
+
+                if sequential>=4:
+                    rt=(sum([Card.cardworths[h.rank] for h in self]),self)
+                    break
+        return rt
+    def eval_straight(self):
+        return self.eval_flush(straight=True,flush=False,royal=False)
+    def eval_straight_flush(self):
+        return self.eval_flush(straight=True)
+
+    def eval_royal_flush(self):
+        return self.eval_flush(royal=True,straight=True)
+
+    def eval(self):
+        for hc in reversed(self.hand_combinations):
+            ev = getattr(self,'eval_'+hc)()
+            if ev:
+                #print(hc.upper(),':',type(ev),ev)
+                assert type(ev)==tuple
+                return (True,hc,ev)
+        return False,None,None
+    
     def __init__(self,jokers=False,card=Card,shuffle=True):
         self.jokers=jokers
         self.card = card
@@ -93,159 +230,30 @@ class Hand(Deck):
 class House(Hand):
     pass
         
-hand_combinations = [
-    'high_card',                
-    'pair',
-    'two_pair',
-    'three_of_a_kind',
-    'straight',
-    'flush',                    
-    'full_house',
-    'four_of_a_kind',
-    'straight_flush',
-    'royal_flush'
-]
 
-cardworths = {
-    '2':2,
-    '3':3,
-    '4':4,
-    '5':5,
-    '6':6,
-    '7':7,
-    '8':8,
-    '9':9,
-    'T':10,
-    'J':11,
-    'Q':12,
-    'K':13,
-    'A':14
-    }
-worthcards = dict(zip(cardworths.values(),cardworths.keys()))
+
+
+worthcards = dict(zip(Card.cardworths.values(),Card.cardworths.keys()))
 
 def card_sort(c1,c2):
 
-    return cmp(cardworths[c1.rank],
-               cardworths[c2.rank])
+    return cmp(Card.cardworths[c1.rank],
+               Card.cardworths[c2.rank])
 
 def nextcard(c):
-    cw = cardworths[c.rank]
+    cw = Card.cardworths[c.rank]
     if cw+1 in worthcards:
         rt = worthcards[cw+1]
         return Card(rt,c.suit)
     else:
         return None
 
-def eval_pair(hand,mode='pair'):
-    agg={}
-    for h in hand:
-        denom = h.rank
-        if denom not in agg:
-            agg[denom]=0
-        agg[denom]+=1
-    if mode=='three_of_a_kind':
-        minf=2
-    elif mode=='four_of_a_kind':
-        minf=3
-    elif mode=='high_card':
-        minf=0
-    elif mode in ['full_house','two_pair','pair']:
-        minf=1
-    else: raise Exception('unknown mode %s'%mode)
 
-    agg = list(filter(lambda x: x[1]>minf,agg.items()))
-    agg.sort(key=c2k(lambda x,y: cmp(cardworths[x[0]],cardworths[y[0]])))
-    if mode=='two_pair':
-        if len(agg)>=2:
-            rt= [(cardworths[cw[0]]*cw[1],cw) for cw in agg]
-            tworth = sum([r[0] for r in rt])
-            return (tworth,rt)
-    elif mode in ['pair','three_of_a_kind','four_of_a_kind']:
-        if len(agg):
-            return cardworths[agg[-1][0]]*agg[-1][1],agg[-1]
-    elif mode in ['high_card']:
-        return cardworths[agg[-1][0]],agg[-1]
-    elif mode in ['full_house']:
-        aggv = [v[1] for v in agg]
-        if 2 in aggv and 3 in aggv:
-            cworth = [cardworths[cw[0]]*cw[1] for cw in agg]
-            return sum(cworth),agg
-    else:
-        raise Exception('unknown mode %s'%mode)
-    return False
-
-def eval_two_pair(hand):
-    return eval_pair(hand,mode='two_pair')
-def eval_three_of_a_kind(hand):
-    return eval_pair(hand,mode='three_of_a_kind')
-def eval_high_card(hand):
-    return eval_pair(hand,mode='high_card')
-def eval_full_house(hand):
-    return eval_pair(hand,mode='full_house')
-def eval_four_of_a_kind(hand):
-    return eval_pair(hand,mode='four_of_a_kind')
-
-def eval_flush(hand,royal=False,straight=False,flush=True):
-
-    rt=False
-    if flush: lim_colors = Card.colors
-    else: lim_colors = ['_']
-    for lim_color in lim_colors:
-        if flush:
-            hc = list(filter(lambda x: x.suit==lim_color,hand))
-            if not straight and not royal and len(hc)==5:
-                return (sum([cardworths[h.rank] for h in hc]),hc)
-        else:
-            hc = hand
-        #print('sorting %s'%hc)
-        hc.sort() #key=c2k(card_sort))
-        sequential=0
-        if royal and len(hc) and cardworths[hc[0].rank]!=10: 
-            continue
-        for i in range(len(hc)):
-            crd = hc[i]
-            seq_nxt = nextcard(crd)
-            if not seq_nxt:
-                continue
-            #print('%s != %s'%(seq_nxt)
-            # if i+1 not in hc:
-            #     break
-            ni = i+1
-            if len(hc)<ni+1:
-                break
-            #print('getting index',ni,'in',hc,len(hc)<ni)
-            real_nxt=hc[ni]
-            if seq_nxt.rank==real_nxt.rank:
-                sequential+=1
-            else:
-                break
-
-            if sequential>=4:
-                rt=(sum([cardworths[h.rank] for h in hand]),hand)
-                break
-    return rt
-def eval_straight(hand):
-    return eval_flush(hand,straight=True,flush=False,royal=False)
-def eval_straight_flush(hand):
-    return eval_flush(hand,straight=True)
-
-def eval_royal_flush(hand):
-    return eval_flush(hand,royal=True,straight=True)
-
-def eval_hand(hand):
-    global hand_combinations
-    for hc in reversed(hand_combinations):
-        ev = eval('eval_'+hc)(hand)
-        if ev:
-            #print(hc.upper(),':',type(ev),ev)
-            assert type(ev)==tuple
-            return (True,hc,ev)
-    return False,None,None
 def cmp(a, b):
     return (a > b) - (a < b) 
 def hands_cmp(h1,h2):
-    c1 = hand_combinations.index(h1[1]['ev'])
-    c2 = hand_combinations.index(h2[1]['ev'])
+    c1 = CardCollection.hand_combinations.index(h1[1]['ev'])
+    c2 = CardCollection.hand_combinations.index(h2[1]['ev'])
     rt= cmp(c1,c2)
     #FIXME: this is incorrect, we judge by the sum of card worths
     #rather than precisely by the rules.
@@ -265,13 +273,12 @@ def playround(participants=1):
         hands[pi].take(deck.deal())
 
     #deal house
-    
     house.take(deck.deal(3),3)
 
     #print('dealt: [%s] %s'%(' '.join(house),', '.join([' '.join(h) for h in hands.values()])))
     #evaluate hands
     for pi in hands:
-        iseval,ev,worth = eval_hand(hands[pi]+house)
+        iseval,ev,worth = (hands[pi]+house).eval()
         #print(worth,ev,hands[pi],house)
         if ev: 
             assert pi not in rt
@@ -305,15 +312,13 @@ def playround(participants=1):
         except TypeError:
             print('wworth:',rt[-1][1]['worth'])
             print('pworth:',rt[-2][1]['worth'])
-            # (4, {'hand': ['6h', 'Jd'], 'house': ['Kh', 'Kc', '6d'], 'ev': 'two_pair', 'worth': [(12, ('6', 2)), (26, ('K', 2))]})
-            # (7, {'hand': ['Jc', '8h'], 'house': ['Kh', 'Kc', '6d'], 'ev': 'pair', 'worth': (26, ('K', 2))})
             raise
 
 
     return rt,winner
     #raise Exception(hands,house)
 
-def test(lim=10000):
+def test(lim=1000):
     random.seed(len(sys.argv)>1 and sys.argv[1] or None)
     cnt=0
     patterns={}
