@@ -1,18 +1,40 @@
 import random,sys
 from functools import cmp_to_key as c2k
 
-colors = ['h','d','c','s']
+
+class Card(object):
+    colors = ['h','d','c','s']
+    numbers = ['2','3','4','5','6','7','8','9','T']
+    royalty = ['J','Q','K','A']
+    jokers = ['O1','O2']
+    def __init__(self,rank,suit):
+        assert rank in self.numbers or rank in self.royalty,rank
+        assert suit in self.colors,suit
+        self.rank = rank
+        self.suit = suit
+    def __repr__(self):
+        return self.rank+self.suit
+    pass
+
+class RuCard(Card):
+    numbers=['6','7','8','9','T']    
+    jokers=[]
+    
 def gendeck(type='normal',jokers=True):
     if type=='russian':
-        numbers=['6','7','8','9','T']
+        numbers = RuCard.numbers
     else:
-        numbers = ['2','3','4','5','6','7','8','9','T']
-    royalty = ['J','Q','K','A']
+        numbers = Card.numbers
+    royalty = Card.royalty
 
     deck=[]
-    for c in colors:
-        deck+= map(lambda x: str(x)+c,numbers+royalty)
-    if jokers: deck+=['O1','O2'] #add two jokers
+    for s in Card.colors:
+        for r in Card.numbers+Card.royalty:
+            c = Card(r,s)
+            deck.append(c)
+    if jokers:
+        for j in Card.jokers:
+            deck+=Card(j) #.jokers #add two jokers
     return list(deck)
 
 hand_combinations = [
@@ -47,21 +69,21 @@ worthcards = dict(zip(cardworths.values(),cardworths.keys()))
 
 def card_sort(c1,c2):
 
-    return cmp(cardworths[c1[0:-1]],
-               cardworths[c2[0:-1]])
+    return cmp(cardworths[c1.rank],
+               cardworths[c2.rank])
 
 def nextcard(c):
-    cw = cardworths[c[0:-1]]
+    cw = cardworths[c.rank]
     if cw+1 in worthcards:
         rt = worthcards[cw+1]
-        return rt+c[1]
+        return Card(rt,c.suit)
     else:
         return None
 
 def eval_pair(hand,mode='pair'):
     agg={}
     for h in hand:
-        denom = h[0:-1]
+        denom = h.rank
         if denom not in agg:
             agg[denom]=0
         agg[denom]+=1
@@ -108,20 +130,21 @@ def eval_four_of_a_kind(hand):
     return eval_pair(hand,mode='four_of_a_kind')
 
 def eval_flush(hand,royal=False,straight=False,flush=True):
+
     rt=False
-    if flush: lim_colors = colors
+    if flush: lim_colors = Card.colors
     else: lim_colors = ['_']
     for lim_color in lim_colors:
         if flush:
-            hc = list(filter(lambda x: x[1]==lim_color,hand))
+            hc = list(filter(lambda x: x.suit==lim_color,hand))
             if not straight and not royal and len(hc)==5:
-                return (sum([cardworths[h[0:-1]] for h in hc]),hc)
+                return (sum([cardworths[h.rank] for h in hc]),hc)
         else:
             hc = hand
         #print('sorting %s'%hc)
         hc.sort(key=c2k(card_sort))
         sequential=0
-        if royal and len(hc) and cardworths[hc[0][0:-1]]!=10: 
+        if royal and len(hc) and cardworths[hc[0].rank]!=10: 
             continue
         for i in range(len(hc)):
             crd = hc[i]
@@ -136,13 +159,13 @@ def eval_flush(hand,royal=False,straight=False,flush=True):
                 break
             #print('getting index',ni,'in',hc,len(hc)<ni)
             real_nxt=hc[ni]
-            if seq_nxt[0:-1]==real_nxt[0:-1]:
+            if seq_nxt.rank==real_nxt.rank:
                 sequential+=1
             else:
                 break
 
             if sequential>=4:
-                rt=(sum([cardworths[h[0:-1]] for h in hand]),hand)
+                rt=(sum([cardworths[h.rank] for h in hand]),hand)
                 break
     return rt
 def eval_straight(hand):
