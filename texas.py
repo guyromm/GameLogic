@@ -14,29 +14,85 @@ class Card(object):
         self.suit = suit
     def __repr__(self):
         return self.rank+self.suit
-    pass
 
+    def __gt__(self,c2):
+        return cardworths[self.rank] > cardworths[c2.rank]
+    def __lt__(self,c2):
+        return cardworths[self.rank] < cardworths[c2.rank]
+    def __eq__(self,c2):
+        return cardworths[self.rank] == cardworths[c2.rank]
+
+    
 class RuCard(Card):
     numbers=['6','7','8','9','T']    
     jokers=[]
+
+class CardCollection(object):
+    def __init__(self,jokers=False,card=Card,shuffle=True):
+        self.jokers=jokers
+        self.card = card
+
+    def __len__(self):
+        return len(self.cards)
+
+    def __getitem__(self,key):
+        return self.cards[key]
     
-def gendeck(type='normal',jokers=True):
-    if type=='russian':
-        numbers = RuCard.numbers
-    else:
-        numbers = Card.numbers
-    royalty = Card.royalty
+    def __add__(self,c2):
+        cc = CardCollection()
+        cc.cards=self.cards+c2.cards
+        return cc
 
-    deck=[]
-    for s in Card.colors:
-        for r in Card.numbers+Card.royalty:
-            c = Card(r,s)
-            deck.append(c)
-    if jokers:
-        for j in Card.jokers:
-            deck+=Card(j) #.jokers #add two jokers
-    return list(deck)
+    def __iter__(self):
+        for c in self.cards:
+            yield c
 
+    def sort(self):
+        self.cards.sort(key=c2k(card_sort))
+    
+    def __repr__(self):
+        return str(self.cards)
+    
+class Deck(CardCollection):
+
+    def __init__(self,jokers=False,card=Card,shuffle=True):
+        super().__init__(jokers=jokers,card=card,shuffle=shuffle)
+        self.generate(shuffle=shuffle)
+
+    def deal(self,qty=2):
+        rt=[]
+        for i in range(qty):
+            rt.append(self.pop())
+        return rt
+        
+    def generate(self,shuffle=True):
+        numbers = self.card.numbers
+        royalty = self.card.royalty
+
+        deck=[]
+        for s in self.card.colors:
+            for r in self.card.numbers+self.card.royalty:
+                c = self.card(r,s)
+                deck.append(c)
+        if self.jokers:
+            for j in self.card.jokers:
+                deck+=self.card(j) #.jokers #add two jokers
+        self.cards = list(deck)
+        if shuffle: random.shuffle(self.cards)
+
+    def pop(self):
+        return self.cards.pop()
+
+class Hand(Deck):
+    take_qty=2
+    def generate(self,*args,**kwargs):
+        self.cards = []
+    def take(self,cards,qty=take_qty):
+        assert len(cards)==qty,"%s != %s"%(cards,qty)
+        self.cards+=cards
+class House(Hand):
+    pass
+        
 hand_combinations = [
     'high_card',                
     'pair',
@@ -142,7 +198,7 @@ def eval_flush(hand,royal=False,straight=False,flush=True):
         else:
             hc = hand
         #print('sorting %s'%hc)
-        hc.sort(key=c2k(card_sort))
+        hc.sort() #key=c2k(card_sort))
         sequential=0
         if royal and len(hc) and cardworths[hc[0].rank]!=10: 
             continue
@@ -199,19 +255,18 @@ def hands_cmp(h1,h2):
 
 def playround(participants=1):
     rt={}
-    deck = gendeck(jokers=False)
-    hands={} ; house=[]
-    random.shuffle(deck)
+    deck = Deck()
+    hands={} 
+    house=House()
+
     #deal hands
     for pi in range(0,participants):
-        hands[pi]=[]
-        for i in range(2):
-            hands[pi].append(deck.pop())
+        hands[pi] = Hand()
+        hands[pi].take(deck.deal())
 
     #deal house
-    house.append(deck.pop())
-    house.append(deck.pop())
-    house.append(deck.pop())
+    
+    house.take(deck.deal(3),3)
 
     #print('dealt: [%s] %s'%(' '.join(house),', '.join([' '.join(h) for h in hands.values()])))
     #evaluate hands
